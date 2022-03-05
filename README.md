@@ -1,5 +1,7 @@
 # C port of the BLAKE3 Rust [reference implementation](https://github.com/BLAKE3-team/BLAKE3/blob/master/reference_impl/reference_impl.rs)
 
+[![Actions Status](https://github.com/oconnor663/blake3_reference_impl_c/workflows/tests/badge.svg)](https://github.com/oconnor663/blake3_reference_impl_c/actions)
+
 Run [`test.py`](test.py) to build and test the `blake3` binary. The binary
 hashes stdin and prints the result to stdout. You can run it like this:
 
