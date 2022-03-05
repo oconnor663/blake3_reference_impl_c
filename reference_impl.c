@@ -458,5 +458,6 @@ int main(int argc, char **argv) {
     printf("%02x", output[i]);
   }
   printf("\n");
+  free(output);
   return 0;
 }

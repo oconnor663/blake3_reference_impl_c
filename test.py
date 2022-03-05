@@ -34,12 +34,12 @@ def main():
         "gcc",
         "reference_impl.c",
         "-g",
-        "-O3",
         "-pedantic",
         "-Wall",
         "-Werror",
         "-o",
         "blake3",
+        "-fsanitize=address,undefined",
     ]
     print(" ".join(build_cmd))
     subprocess.run(build_cmd, check=True)
@@ -72,6 +72,8 @@ def main():
             test_run(input_len, ["--derive-key", test_context, "--len", "131"])
             == case["derive_key"]
         )
+
+    print("TESTS PASSED")
 
 
 if __name__ == "__main__":
