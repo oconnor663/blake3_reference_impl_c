@@ -288,6 +288,37 @@ inline static void hasher_init_internal(blake3_hasher *self,
   self->flags = flags;
 }
 
+// Construct a new `Hasher` for the regular hash function.
+void blake3_hasher_init(blake3_hasher *self) {
+  hasher_init_internal(self, IV, 0);
+}
+
+/// Construct a new `Hasher` for the keyed hash function.
+void blake3_hasher_init_keyed(blake3_hasher *self, const uint8_t key[KEY_LEN]) {
+  uint32_t key_words[8];
+  words_from_little_endian_bytes(key, KEY_LEN, key_words);
+  hasher_init_internal(self, key_words, KEYED_HASH);
+}
+
+// Forward-declare these two for blake3_hasher_init_derive_key.
+void blake3_hasher_update(blake3_hasher *self, const void *input,
+                          size_t input_len);
+void blake3_hasher_finalize(const blake3_hasher *self, void *out,
+                            size_t out_len);
+
+// Construct a new `Hasher` for the key derivation function. The context
+// string should be hardcoded, globally unique, and application-specific.
+void blake3_hasher_init_derive_key(blake3_hasher *self, const char *context) {
+  blake3_hasher context_hasher;
+  hasher_init_internal(&context_hasher, IV, DERIVE_KEY_CONTEXT);
+  blake3_hasher_update(&context_hasher, context, strlen(context));
+  uint8_t context_key[KEY_LEN];
+  blake3_hasher_finalize(&context_hasher, context_key, KEY_LEN);
+  uint32_t context_key_words[8];
+  words_from_little_endian_bytes(context_key, KEY_LEN, context_key_words);
+  hasher_init_internal(self, context_key_words, DERIVE_KEY_MATERIAL);
+}
+
 inline static void hasher_push_stack(blake3_hasher *self,
                                      const uint32_t cv[8]) {
   memcpy(&self->cv_stack[(size_t)self->cv_stack_len * 8], cv, 8 * 4);
@@ -363,31 +394,6 @@ void blake3_hasher_finalize(const blake3_hasher *self, void *out,
                                    current_cv, self->key_words, self->flags);
   }
   output_root_bytes(&current_output, out, out_len);
-}
-
-// Construct a new `Hasher` for the regular hash function.
-void blake3_hasher_init(blake3_hasher *self) {
-  hasher_init_internal(self, IV, 0);
-}
-
-/// Construct a new `Hasher` for the keyed hash function.
-void blake3_hasher_init_keyed(blake3_hasher *self, const uint8_t key[KEY_LEN]) {
-  uint32_t key_words[8];
-  words_from_little_endian_bytes(key, KEY_LEN, key_words);
-  hasher_init_internal(self, key_words, KEYED_HASH);
-}
-
-// Construct a new `Hasher` for the key derivation function. The context
-// string should be hardcoded, globally unique, and application-specific.
-void blake3_hasher_init_derive_key(blake3_hasher *self, const char *context) {
-  blake3_hasher context_hasher;
-  hasher_init_internal(&context_hasher, IV, DERIVE_KEY_CONTEXT);
-  blake3_hasher_update(&context_hasher, context, strlen(context));
-  uint8_t context_key[KEY_LEN];
-  blake3_hasher_finalize(&context_hasher, context_key, KEY_LEN);
-  uint32_t context_key_words[8];
-  words_from_little_endian_bytes(context_key, KEY_LEN, context_key_words);
-  hasher_init_internal(self, context_key_words, DERIVE_KEY_MATERIAL);
 }
 
 inline static uint8_t nibble_from_hex_char(char hex_char) {
