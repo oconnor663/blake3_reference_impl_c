@@ -406,7 +406,11 @@ int main(int argc, char **argv) {
   // This is a toy main function, and we don't bother to check for invalid
   // inputs like negative lengths here.
   while (argc > 1) {
-    if (strcmp(argv[1], "--len") == 0) {
+    if (strcmp(argv[1], "--help") == 0) {
+      printf("Usage: blake3 [--len <BYTES>] [--key <HEX>] [--derive-key "
+             "<CONTEXT>]\n");
+      return 0;
+    } else if (strcmp(argv[1], "--len") == 0) {
       output_len = (size_t)strtoll(argv[2], NULL, 10);
     } else if (strcmp(argv[1], "--key") == 0) {
       assert(derive_key_context == NULL);
