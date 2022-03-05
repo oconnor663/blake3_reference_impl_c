@@ -29,13 +29,13 @@ static uint32_t IV[8] = {
 static size_t MSG_PERMUTATION[16] = {2, 6,  3,  10, 7, 0,  4,  13,
                                      1, 11, 12, 5,  9, 14, 15, 8};
 
-static uint32_t rotate_right(uint32_t x, int n) {
+inline static uint32_t rotate_right(uint32_t x, int n) {
   return (x >> n) | (x << (32 - n));
 }
 
 // The mixing function, G, which mixes either a column or a diagonal.
-static void g(uint32_t state[16], size_t a, size_t b, size_t c, size_t d,
-              uint32_t mx, uint32_t my) {
+inline static void g(uint32_t state[16], size_t a, size_t b, size_t c, size_t d,
+                     uint32_t mx, uint32_t my) {
   state[a] = state[a] + state[b] + mx;
   state[d] = rotate_right(state[d] ^ state[a], 16);
   state[c] = state[c] + state[d];
@@ -46,7 +46,7 @@ static void g(uint32_t state[16], size_t a, size_t b, size_t c, size_t d,
   state[b] = rotate_right(state[b] ^ state[c], 7);
 }
 
-static void round_function(uint32_t state[16], uint32_t m[16]) {
+inline static void round_function(uint32_t state[16], uint32_t m[16]) {
   // Mix the columns.
   g(state, 0, 4, 8, 12, m[0], m[1]);
   g(state, 1, 5, 9, 13, m[2], m[3]);
@@ -59,7 +59,7 @@ static void round_function(uint32_t state[16], uint32_t m[16]) {
   g(state, 3, 4, 9, 14, m[14], m[15]);
 }
 
-static void permute(uint32_t m[16]) {
+inline static void permute(uint32_t m[16]) {
   uint32_t permuted[16];
   for (size_t i = 0; i < 16; i++) {
     permuted[i] = m[MSG_PERMUTATION[i]];
@@ -67,9 +67,10 @@ static void permute(uint32_t m[16]) {
   memcpy(m, permuted, sizeof(permuted));
 }
 
-static void compress(const uint32_t chaining_value[8],
-                     const uint32_t block_words[16], uint64_t counter,
-                     uint32_t block_len, uint32_t flags, uint32_t out[16]) {
+inline static void compress(const uint32_t chaining_value[8],
+                            const uint32_t block_words[16], uint64_t counter,
+                            uint32_t block_len, uint32_t flags,
+                            uint32_t out[16]) {
   uint32_t state[16] = {
       chaining_value[0],
       chaining_value[1],
@@ -113,8 +114,9 @@ static void compress(const uint32_t chaining_value[8],
   memcpy(out, state, sizeof(state));
 }
 
-static void words_from_little_endian_bytes(const void *bytes, size_t bytes_len,
-                                           uint32_t *out) {
+inline static void words_from_little_endian_bytes(const void *bytes,
+                                                  size_t bytes_len,
+                                                  uint32_t *out) {
   assert(bytes_len % 4 == 0);
   const uint8_t *u8_ptr = (const uint8_t *)bytes;
   for (size_t i = 0; i < (bytes_len / 4); i++) {
@@ -136,14 +138,15 @@ typedef struct output {
   uint32_t flags;
 } output;
 
-static void output_chaining_value(const output *self, uint32_t out[8]) {
+inline static void output_chaining_value(const output *self, uint32_t out[8]) {
   uint32_t out16[16];
   compress(self->input_chaining_value, self->block_words, self->counter,
            self->block_len, self->flags, out16);
   memcpy(out, out16, 8 * 4);
 }
 
-static void output_root_bytes(const output *self, void *out, size_t out_len) {
+inline static void output_root_bytes(const output *self, void *out,
+                                     size_t out_len) {
   uint8_t *out_u8 = (uint8_t *)out;
   uint64_t output_block_counter = 0;
   while (out_len > 0) {
@@ -173,8 +176,9 @@ typedef struct chunk_state {
   uint32_t flags;
 } chunk_state;
 
-static void chunk_state_init(chunk_state *self, const uint32_t key_words[8],
-                             uint64_t chunk_counter, uint32_t flags) {
+inline static void chunk_state_init(chunk_state *self,
+                                    const uint32_t key_words[8],
+                                    uint64_t chunk_counter, uint32_t flags) {
   memcpy(self->chaining_value, key_words, sizeof(self->chaining_value));
   self->chunk_counter = chunk_counter;
   memset(self->block, 0, sizeof(self->block));
@@ -183,11 +187,11 @@ static void chunk_state_init(chunk_state *self, const uint32_t key_words[8],
   self->flags = flags;
 }
 
-static size_t chunk_state_len(const chunk_state *self) {
+inline static size_t chunk_state_len(const chunk_state *self) {
   return BLOCK_LEN * (size_t)self->blocks_compressed + (size_t)self->block_len;
 }
 
-static uint32_t chunk_state_start_flag(const chunk_state *self) {
+inline static uint32_t chunk_state_start_flag(const chunk_state *self) {
   if (self->blocks_compressed == 0) {
     return CHUNK_START;
   } else {
@@ -195,8 +199,8 @@ static uint32_t chunk_state_start_flag(const chunk_state *self) {
   }
 }
 
-static void chunk_state_update(chunk_state *self, const void *input,
-                               size_t input_len) {
+inline static void chunk_state_update(chunk_state *self, const void *input,
+                                      size_t input_len) {
   const uint8_t *input_u8 = (const uint8_t *)input;
   while (input_len > 0) {
     // If the block buffer is full, compress it and clear it. More input is
@@ -226,7 +230,7 @@ static void chunk_state_update(chunk_state *self, const void *input,
   }
 }
 
-static output chunk_state_output(const chunk_state *self) {
+inline static output chunk_state_output(const chunk_state *self) {
   output ret;
   memcpy(ret.input_chaining_value, self->chaining_value,
          sizeof(ret.input_chaining_value));
@@ -238,9 +242,10 @@ static output chunk_state_output(const chunk_state *self) {
   return ret;
 }
 
-static output parent_output(const uint32_t left_child_cv[8],
-                            const uint32_t right_child_cv[8],
-                            const uint32_t key_words[8], uint32_t flags) {
+inline static output parent_output(const uint32_t left_child_cv[8],
+                                   const uint32_t right_child_cv[8],
+                                   const uint32_t key_words[8],
+                                   uint32_t flags) {
   output ret;
   memcpy(ret.input_chaining_value, key_words, sizeof(ret.input_chaining_value));
   memcpy(&ret.block_words[0], left_child_cv, 8 * 4);
@@ -251,10 +256,10 @@ static output parent_output(const uint32_t left_child_cv[8],
   return ret;
 }
 
-static void parent_cv(const uint32_t left_child_cv[8],
-                      const uint32_t right_child_cv[8],
-                      const uint32_t key_words[8], uint32_t flags,
-                      uint32_t out[8]) {
+inline static void parent_cv(const uint32_t left_child_cv[8],
+                             const uint32_t right_child_cv[8],
+                             const uint32_t key_words[8], uint32_t flags,
+                             uint32_t out[8]) {
   output o = parent_output(left_child_cv, right_child_cv, key_words, flags);
   // We only write to `out` after we've read the inputs. That makes it safe for
   // `out` to alias an input, which we do below.
@@ -270,28 +275,30 @@ typedef struct blake3_hasher {
   uint32_t flags;
 } blake3_hasher;
 
-static void hasher_init_internal(blake3_hasher *self,
-                                 const uint32_t key_words[8], uint32_t flags) {
+inline static void hasher_init_internal(blake3_hasher *self,
+                                        const uint32_t key_words[8],
+                                        uint32_t flags) {
   chunk_state_init(&self->chunk_state, key_words, 0, flags);
   memcpy(self->key_words, key_words, sizeof(self->key_words));
   self->cv_stack_len = 0;
   self->flags = flags;
 }
 
-static void hasher_push_stack(blake3_hasher *self, const uint32_t cv[8]) {
+inline static void hasher_push_stack(blake3_hasher *self,
+                                     const uint32_t cv[8]) {
   memcpy(&self->cv_stack[(size_t)self->cv_stack_len * 8], cv, 8 * 4);
   self->cv_stack_len++;
 }
 
 // Returns a pointer to the popped CV, which is valid until the next push.
-static const uint32_t *hasher_pop_stack(blake3_hasher *self) {
+inline static const uint32_t *hasher_pop_stack(blake3_hasher *self) {
   self->cv_stack_len--;
   return &self->cv_stack[(size_t)self->cv_stack_len * 8];
 }
 
 // Section 5.1.2 of the BLAKE3 spec explains this algorithm in more detail.
-static void hasher_add_chunk_cv(blake3_hasher *self, uint32_t new_cv[8],
-                                uint64_t total_chunks) {
+inline static void hasher_add_chunk_cv(blake3_hasher *self, uint32_t new_cv[8],
+                                       uint64_t total_chunks) {
   // This chunk might complete some subtrees. For each completed subtree, its
   // left child will be the current top entry in the CV stack, and its right
   // child will be the current value of `new_cv`. Pop each left child off the
@@ -379,7 +386,7 @@ void blake3_hasher_init_derive_key(blake3_hasher *self, const char *context) {
   hasher_init_internal(self, context_key_words, DERIVE_KEY_MATERIAL);
 }
 
-static uint8_t nibble_from_hex_char(char hex_char) {
+inline static uint8_t nibble_from_hex_char(char hex_char) {
   assert(('0' <= hex_char && hex_char <= '9') ||
          ('a' <= hex_char && hex_char <= 'f'));
   if ('0' <= hex_char && hex_char <= '9') {
@@ -389,7 +396,8 @@ static uint8_t nibble_from_hex_char(char hex_char) {
   }
 }
 
-static void key_bytes_from_hex(const char *hex_key, uint8_t out[KEY_LEN]) {
+inline static void key_bytes_from_hex(const char *hex_key,
+                                      uint8_t out[KEY_LEN]) {
   assert(strlen(hex_key) == 2 * KEY_LEN);
   for (size_t i = 0; i < KEY_LEN; i++) {
     out[i] = nibble_from_hex_char(hex_key[2 * i]) * 16;
