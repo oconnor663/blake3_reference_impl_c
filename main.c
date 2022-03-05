@@ -1,10 +1,10 @@
-// Include the whole reference_impl.c file, to avoid maintaining separate
-// headers. That means we compile this example binary like `gcc main.c`,
-// without including reference_impl.c on the command line.
-#include "reference_impl.c"
-
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "reference_impl.h"
 
 #ifdef _WIN32
 // Needed to switch stdin to binary mode.
@@ -23,9 +23,9 @@ inline static uint8_t nibble_from_hex_char(char hex_char) {
 }
 
 inline static void key_bytes_from_hex(const char *hex_key,
-                                      uint8_t out[KEY_LEN]) {
-  assert(strlen(hex_key) == 2 * KEY_LEN);
-  for (size_t i = 0; i < KEY_LEN; i++) {
+                                      uint8_t out[BLAKE3_KEY_LEN]) {
+  assert(strlen(hex_key) == 2 * BLAKE3_KEY_LEN);
+  for (size_t i = 0; i < BLAKE3_KEY_LEN; i++) {
     out[i] = nibble_from_hex_char(hex_key[2 * i]) * 16;
     out[i] += nibble_from_hex_char(hex_key[2 * i + 1]);
   }
@@ -38,10 +38,10 @@ int main(int argc, char **argv) {
   _setmode(_fileno(stdin), _O_BINARY);
 #endif
 
-  uint8_t key[KEY_LEN];
+  uint8_t key[BLAKE3_KEY_LEN];
   bool has_key = false;
   const char *derive_key_context = NULL;
-  size_t output_len = OUT_LEN;
+  size_t output_len = BLAKE3_OUT_LEN;
 
   // This is a toy main function, and we don't bother to check for invalid
   // inputs like negative lengths here.

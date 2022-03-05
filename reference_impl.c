@@ -1,12 +1,7 @@
 #include <assert.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 
-#define OUT_LEN 32
-#define KEY_LEN 32
-#define BLOCK_LEN 64
-#define CHUNK_LEN 1024
+#include "reference_impl.h"
 
 #define CHUNK_START 1 << 0
 #define CHUNK_END 1 << 1
@@ -162,16 +157,7 @@ inline static void output_root_bytes(const output *self, void *out,
   }
 }
 
-typedef struct chunk_state {
-  uint32_t chaining_value[8];
-  uint64_t chunk_counter;
-  uint8_t block[BLOCK_LEN];
-  uint8_t block_len;
-  uint8_t blocks_compressed;
-  uint32_t flags;
-} chunk_state;
-
-inline static void chunk_state_init(chunk_state *self,
+inline static void chunk_state_init(_blake3_chunk_state *self,
                                     const uint32_t key_words[8],
                                     uint64_t chunk_counter, uint32_t flags) {
   memcpy(self->chaining_value, key_words, sizeof(self->chaining_value));
@@ -182,11 +168,12 @@ inline static void chunk_state_init(chunk_state *self,
   self->flags = flags;
 }
 
-inline static size_t chunk_state_len(const chunk_state *self) {
-  return BLOCK_LEN * (size_t)self->blocks_compressed + (size_t)self->block_len;
+inline static size_t chunk_state_len(const _blake3_chunk_state *self) {
+  return BLAKE3_BLOCK_LEN * (size_t)self->blocks_compressed +
+         (size_t)self->block_len;
 }
 
-inline static uint32_t chunk_state_start_flag(const chunk_state *self) {
+inline static uint32_t chunk_state_start_flag(const _blake3_chunk_state *self) {
   if (self->blocks_compressed == 0) {
     return CHUNK_START;
   } else {
@@ -194,18 +181,20 @@ inline static uint32_t chunk_state_start_flag(const chunk_state *self) {
   }
 }
 
-inline static void chunk_state_update(chunk_state *self, const void *input,
-                                      size_t input_len) {
+inline static void chunk_state_update(_blake3_chunk_state *self,
+                                      const void *input, size_t input_len) {
   const uint8_t *input_u8 = (const uint8_t *)input;
   while (input_len > 0) {
     // If the block buffer is full, compress it and clear it. More input is
     // coming, so this compression is not CHUNK_END.
-    if (self->block_len == BLOCK_LEN) {
+    if (self->block_len == BLAKE3_BLOCK_LEN) {
       uint32_t block_words[16];
-      words_from_little_endian_bytes(self->block, BLOCK_LEN, block_words);
+      words_from_little_endian_bytes(self->block, BLAKE3_BLOCK_LEN,
+                                     block_words);
       uint32_t out16[16];
       compress(self->chaining_value, block_words, self->chunk_counter,
-               BLOCK_LEN, self->flags | chunk_state_start_flag(self), out16);
+               BLAKE3_BLOCK_LEN, self->flags | chunk_state_start_flag(self),
+               out16);
       memcpy(self->chaining_value, out16, sizeof(self->chaining_value));
       self->blocks_compressed++;
       memset(self->block, 0, sizeof(self->block));
@@ -213,7 +202,7 @@ inline static void chunk_state_update(chunk_state *self, const void *input,
     }
 
     // Copy input bytes into the block buffer.
-    size_t want = BLOCK_LEN - (size_t)self->block_len;
+    size_t want = BLAKE3_BLOCK_LEN - (size_t)self->block_len;
     size_t take = want;
     if (input_len < want) {
       take = input_len;
@@ -225,7 +214,7 @@ inline static void chunk_state_update(chunk_state *self, const void *input,
   }
 }
 
-inline static output chunk_state_output(const chunk_state *self) {
+inline static output chunk_state_output(const _blake3_chunk_state *self) {
   output ret;
   memcpy(ret.input_chaining_value, self->chaining_value,
          sizeof(ret.input_chaining_value));
@@ -245,8 +234,9 @@ inline static output parent_output(const uint32_t left_child_cv[8],
   memcpy(ret.input_chaining_value, key_words, sizeof(ret.input_chaining_value));
   memcpy(&ret.block_words[0], left_child_cv, 8 * 4);
   memcpy(&ret.block_words[8], right_child_cv, 8 * 4);
-  ret.counter = 0;           // Always 0 for parent nodes.
-  ret.block_len = BLOCK_LEN; // Always BLOCK_LEN (64) for parent nodes.
+  ret.counter = 0; // Always 0 for parent nodes.
+  ret.block_len =
+      BLAKE3_BLOCK_LEN; // Always BLAKE3_BLOCK_LEN (64) for parent nodes.
   ret.flags = PARENT | flags;
   return ret;
 }
@@ -260,15 +250,6 @@ inline static void parent_cv(const uint32_t left_child_cv[8],
   // `out` to alias an input, which we do below.
   output_chaining_value(&o, out);
 }
-
-/// An incremental hasher that can accept any number of writes.
-typedef struct blake3_hasher {
-  chunk_state chunk_state;
-  uint32_t key_words[8];
-  uint32_t cv_stack[8 * 54]; // Space for 54 subtree chaining values:
-  uint8_t cv_stack_len;      // 2^54 * CHUNK_LEN = 2^64
-  uint32_t flags;
-} blake3_hasher;
 
 inline static void hasher_init_internal(blake3_hasher *self,
                                         const uint32_t key_words[8],
@@ -284,18 +265,13 @@ void blake3_hasher_init(blake3_hasher *self) {
   hasher_init_internal(self, IV, 0);
 }
 
-/// Construct a new `Hasher` for the keyed hash function.
-void blake3_hasher_init_keyed(blake3_hasher *self, const uint8_t key[KEY_LEN]) {
+// Construct a new `Hasher` for the keyed hash function.
+void blake3_hasher_init_keyed(blake3_hasher *self,
+                              const uint8_t key[BLAKE3_KEY_LEN]) {
   uint32_t key_words[8];
-  words_from_little_endian_bytes(key, KEY_LEN, key_words);
+  words_from_little_endian_bytes(key, BLAKE3_KEY_LEN, key_words);
   hasher_init_internal(self, key_words, KEYED_HASH);
 }
-
-// Forward-declare these two for blake3_hasher_init_derive_key.
-void blake3_hasher_update(blake3_hasher *self, const void *input,
-                          size_t input_len);
-void blake3_hasher_finalize(const blake3_hasher *self, void *out,
-                            size_t out_len);
 
 // Construct a new `Hasher` for the key derivation function. The context
 // string should be hardcoded, globally unique, and application-specific.
@@ -303,10 +279,11 @@ void blake3_hasher_init_derive_key(blake3_hasher *self, const char *context) {
   blake3_hasher context_hasher;
   hasher_init_internal(&context_hasher, IV, DERIVE_KEY_CONTEXT);
   blake3_hasher_update(&context_hasher, context, strlen(context));
-  uint8_t context_key[KEY_LEN];
-  blake3_hasher_finalize(&context_hasher, context_key, KEY_LEN);
+  uint8_t context_key[BLAKE3_KEY_LEN];
+  blake3_hasher_finalize(&context_hasher, context_key, BLAKE3_KEY_LEN);
   uint32_t context_key_words[8];
-  words_from_little_endian_bytes(context_key, KEY_LEN, context_key_words);
+  words_from_little_endian_bytes(context_key, BLAKE3_KEY_LEN,
+                                 context_key_words);
   hasher_init_internal(self, context_key_words, DERIVE_KEY_MATERIAL);
 }
 
@@ -347,7 +324,7 @@ void blake3_hasher_update(blake3_hasher *self, const void *input,
   while (input_len > 0) {
     // If the current chunk is complete, finalize it and reset the chunk state.
     // More input is coming, so this chunk is not ROOT.
-    if (chunk_state_len(&self->chunk_state) == CHUNK_LEN) {
+    if (chunk_state_len(&self->chunk_state) == BLAKE3_CHUNK_LEN) {
       output chunk_output = chunk_state_output(&self->chunk_state);
       uint32_t chunk_cv[8];
       output_chaining_value(&chunk_output, chunk_cv);
@@ -358,7 +335,7 @@ void blake3_hasher_update(blake3_hasher *self, const void *input,
     }
 
     // Compress input bytes into the current chunk state.
-    size_t want = CHUNK_LEN - chunk_state_len(&self->chunk_state);
+    size_t want = BLAKE3_CHUNK_LEN - chunk_state_len(&self->chunk_state);
     size_t take = want;
     if (input_len < want) {
       take = input_len;
