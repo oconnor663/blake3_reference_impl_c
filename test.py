@@ -2,11 +2,33 @@
 
 import json
 import os
+import platform
 import subprocess
-from os import path
 
-HERE = path.dirname(path.abspath(__file__))
+HERE = os.path.dirname(os.path.abspath(__file__))
 os.chdir(HERE)
+
+if platform.system() == "Windows":
+    EXE = "blake3.exe"
+    BUILD_COMMAND = [
+        "cl.exe",
+        "reference_impl.c",
+        "/Fe:",
+        EXE,
+    ]
+else:
+    EXE = "./blake3"
+    BUILD_COMMAND = [
+        "gcc",
+        "reference_impl.c",
+        "-g",
+        "-pedantic",
+        "-Wall",
+        "-Werror",
+        "-o",
+        EXE,
+        "-fsanitize=address,undefined",
+    ]
 
 
 def test_input(length):
@@ -30,19 +52,8 @@ def test_run(input_len, flags):
 
 
 def main():
-    build_cmd = [
-        "gcc",
-        "reference_impl.c",
-        "-g",
-        "-pedantic",
-        "-Wall",
-        "-Werror",
-        "-o",
-        "blake3",
-        "-fsanitize=address,undefined",
-    ]
-    print(" ".join(build_cmd))
-    subprocess.run(build_cmd, check=True)
+    print(" ".join(BUILD_COMMAND))
+    subprocess.run(BUILD_COMMAND, check=True)
 
     with open("test_vectors.json") as f:
         vectors = json.load(f)

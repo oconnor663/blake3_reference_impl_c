@@ -1,12 +1,16 @@
 #include <assert.h>
-#include <errno.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+
+#ifdef _WIN32
+// Needed to switch stdin to binary mode.
+#include <fcntl.h>
+#include <io.h>
+#endif
 
 #define OUT_LEN 32
 #define KEY_LEN 32
@@ -406,6 +410,12 @@ inline static void key_bytes_from_hex(const char *hex_key,
 }
 
 int main(int argc, char **argv) {
+#ifdef _WIN32
+  // Windows defaults to text mode, which will mess with newlines in our input.
+  // This switches to binary mode.
+  _setmode(_fileno(stdin), _O_BINARY);
+#endif
+
   uint8_t key[KEY_LEN];
   bool has_key = false;
   const char *derive_key_context = NULL;
@@ -445,15 +455,11 @@ int main(int argc, char **argv) {
   // Hash standard input until we reach EOF.
   unsigned char buf[65536];
   while (1) {
-    ssize_t n = read(STDIN_FILENO, buf, sizeof(buf));
-    if (n > 0) {
-      blake3_hasher_update(&hasher, buf, n);
-    } else if (n == 0) {
-      break; // EOF
-    } else {
-      fprintf(stderr, "read failed: %s\n", strerror(errno));
-      exit(1);
+    size_t n = fread(buf, 1, sizeof(buf), stdin);
+    if (n == 0) {
+      break; // EOF (or possibly an error)
     }
+    blake3_hasher_update(&hasher, buf, n);
   }
 
   // Finalize the hash.
