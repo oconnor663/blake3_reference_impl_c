@@ -1,4 +1,4 @@
-# C port of the BLAKE3 Rust reference implementation
+# C port of the BLAKE3 Rust [reference implementation](https://github.com/BLAKE3-team/BLAKE3/blob/master/reference_impl/reference_impl.rs)
 
 Run [`test.py`](test.py) to build and test the `blake3` binary. The binary
 hashes stdin and prints the result to stdout. You can run it like this:
