@@ -12,7 +12,7 @@ if platform.system() == "Windows":
     EXE = "blake3.exe"
     BUILD_COMMAND = [
         "cl.exe",
-        "reference_impl.c",
+        "main.c",
         "/W4",  # display most warnings, but not those off by default
         "/WX",  # like -Werror
         "/Fe:",  # like -o
@@ -22,7 +22,7 @@ else:
     EXE = "./blake3"
     BUILD_COMMAND = [
         "gcc",
-        "reference_impl.c",
+        "main.c",
         "-g",
         "-pedantic",
         "-Wall",
