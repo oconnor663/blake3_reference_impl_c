@@ -13,7 +13,9 @@ if platform.system() == "Windows":
     BUILD_COMMAND = [
         "cl.exe",
         "reference_impl.c",
-        "/Fe:",
+        "/W4",  # display most warnings, but not those off by default
+        "/WX",  # like -Werror
+        "/Fe:",  # like -o
         EXE,
     ]
 else:
