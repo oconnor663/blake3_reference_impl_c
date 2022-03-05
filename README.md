@@ -16,6 +16,11 @@ $ echo hello world | ./blake3 --key 00000000000000000000000000000000000000000000
 30f932e14e8cef63f94e658994059fba1a0cf548b01813714c2ce32e2e1c5d3d
 ```
 
+Note that putting `--key` on the command line as in the example above isn't
+something you should do in production, because other processes on your machine
+can see your command line arguments. This binary is for demo and testing
+purposes only and isn't intended for production use.
+
 This implementation tries to be as simple as possible, and the only performance
 optimization here is liberal use of the `inline` keyword. Performance isn't
 terrible though, and under `clang -O3` this is a hair faster than Coreutils
